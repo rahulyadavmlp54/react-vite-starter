@@ -8,7 +8,7 @@ export default function DashboardLayout() {
         <div className="d-flex" style={{ minHeight: '100vh' }}>
             <Sidebar />
             <div className="flex-grow-1">
-                <Navbar />
+                {/* <Navbar /> */}
                 <div className="p-4">
                     <Outlet /> 
                 </div>
