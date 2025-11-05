@@ -1,11 +1,15 @@
-import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
-import DashboardLayout from '../layout/DashboardLayout'
-import Dashboard from '../pages/Dashboard'
-import PropertiesList from '../pages/PropertiesList'
-import AddProperty from '../pages/AddProperty'
-import EditProperty from '../pages/EditProperty'
-import ProtectedRoute from './ProtectedRoute'
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import DashboardLayout from "../layout/DashboardLayout";
+import Dashboard from "../pages/Dashboard";
+import PropertiesList from "../pages/PropertiesList";
+import AddProperty from "../pages/AddProperty";
+import EditProperty from "../pages/EditProperty";
+import PropertyDetail from "../pages/PropertyDetail";
+import BookProperty from "../pages/BookProperty";
+import MyBookings from "../pages/MyBookings";
+import OwnerBookings from "../pages/OwnerBookings";
+import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
     return (
@@ -18,12 +22,23 @@ export default function AppRoutes() {
                     </ProtectedRoute>
                 }
             >
+                {/* Dashboard */}
                 <Route index element={<Dashboard />} />
+
+                {/* Property Management */}
                 <Route path="properties" element={<PropertiesList />} />
                 <Route path="properties/add" element={<AddProperty />} />
                 <Route path="properties/edit/:id" element={<EditProperty />} />
+                <Route path="properties/:id" element={<PropertyDetail />} />
+
+                {/* Booking Flow */}
+                <Route path="properties/book/:id" element={<BookProperty />} />
+                <Route path="my-bookings" element={<MyBookings />} />
+                <Route path="owner-bookings" element={<OwnerBookings />} />
+
+                {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" />} />
             </Route>
         </Routes>
-    )
+    );
 }
