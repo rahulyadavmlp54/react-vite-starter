@@ -17,25 +17,43 @@ export default function Sidebar({ onWidthChange }) {
     const location = useLocation();
     const navigate = useNavigate();
     const { showLoader, hideLoader } = useLoader();
-    const [role, setRole] = useState("user");
+    const [role, setRole] = useState(null); // ⬅ null means "not loaded yet"
     const [collapsed, setCollapsed] = useState(true);
 
-    // ✅ Fetch role from Supabase
+    // ✅ Fetch role safely
     useEffect(() => {
         const fetchRole = async () => {
-            const {
-                data: { user },
-            } = await supabase.auth.getUser();
-            if (!user) return;
-            const { data } = await supabase
-                .from("profiles")
-                .select("role")
-                .eq("id", user.id)
-                .single();
-            if (data?.role) setRole(data.role);
+            try {
+                const {
+                    data: { user },
+                    error: userError,
+                } = await supabase.auth.getUser();
+
+                if (userError || !user) {
+                    console.warn("No user found, redirecting...");
+                    navigate("/login");
+                    return;
+                }
+
+                const { data, error } = await supabase
+                    .from("profiles")
+                    .select("role")
+                    .eq("id", user.id)
+                    .single();
+
+                if (error) {
+                    console.error("Failed to fetch profile:", error);
+                    setRole("user"); // fallback if something breaks
+                } else {
+                    setRole(data?.role || "user");
+                }
+            } catch (err) {
+                console.error("Role fetch error:", err);
+                setRole("user");
+            }
         };
         fetchRole();
-    }, []);
+    }, [navigate]);
 
     // ✅ Notify parent layout when sidebar expands/collapses
     useEffect(() => {
@@ -46,7 +64,7 @@ export default function Sidebar({ onWidthChange }) {
 
     const isActive = (path) => location.pathname === path;
 
-    // ✅ Handle logout with loader + SweetAlert
+    // ✅ Logout
     const handleLogout = async () => {
         const confirm = await Swal.fire({
             title: "Are you sure?",
@@ -72,14 +90,31 @@ export default function Sidebar({ onWidthChange }) {
         }
     };
 
-    // ✅ Role-based menu structure
+    // ✅ Prevent flicker by showing loader while role is loading
+    if (role === null) {
+        return (
+            <div
+                className="d-flex align-items-center justify-content-center text-white"
+                style={{
+                    width: "80px",
+                    height: "100vh",
+                    backgroundColor: "#111827",
+                }}
+            >
+                <div className="spinner-border text-light" role="status"></div>
+            </div>
+        );
+    }
+
+    // ✅ Role-based menu
     const menuItems =
         role === "admin"
             ? [
                 { path: "/", label: "Dashboard", icon: <Home size={20} /> },
+                { path: "/users", label: "All Users", icon: <User size={20} /> },
                 { path: "/properties", label: "All Properties", icon: <Building size={20} /> },
                 { path: "/properties/add", label: "Add Property", icon: <PlusCircle size={20} /> },
-                { path: "/owner-bookings", label: "All Bookings", icon: <ClipboardList size={20} /> }, // admin sees all
+                { path: "/owner-bookings", label: "All Bookings", icon: <ClipboardList size={20} /> },
             ]
             : role === "owner"
                 ? [
@@ -107,13 +142,13 @@ export default function Sidebar({ onWidthChange }) {
                 zIndex: 10,
             }}
         >
-            {/* 🔹 Header */}
+            {/* Header */}
             <div className="d-flex align-items-center p-3 border-bottom border-secondary">
                 <User className="me-2" />
                 {!collapsed && <h5 className="fw-bold mb-0">RentEase</h5>}
             </div>
 
-            {/* 🔹 Menu Items */}
+            {/* Menu */}
             <ul className="nav flex-column px-2 mt-2">
                 {menuItems.map((item) => (
                     <li key={item.path} className="nav-item mb-2">
@@ -134,14 +169,12 @@ export default function Sidebar({ onWidthChange }) {
                 ))}
             </ul>
 
-            {/* 🔹 Footer Section */}
+            {/* Footer */}
             <div className="mt-auto p-3 border-top border-secondary text-center">
                 {!collapsed && (
                     <>
                         <div className="text-secondary small mb-2">
-                            {role === "admin"
-                                ? "Role: ADMIN (Full Access)"
-                                : `Role: ${role?.toUpperCase()}`}
+                            Role: {role?.toUpperCase()}
                         </div>
                         <button
                             onClick={handleLogout}

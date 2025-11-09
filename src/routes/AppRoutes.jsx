@@ -9,6 +9,7 @@ import PropertyDetail from "../pages/PropertyDetail";
 import BookProperty from "../pages/BookProperty";
 import MyBookings from "../pages/MyBookings";
 import OwnerBookings from "../pages/OwnerBookings";
+import UsersList from "../pages/UsersList"; // ✅ Added this import
 import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
@@ -35,6 +36,9 @@ export default function AppRoutes() {
                 <Route path="properties/book/:id" element={<BookProperty />} />
                 <Route path="my-bookings" element={<MyBookings />} />
                 <Route path="owner-bookings" element={<OwnerBookings />} />
+
+                {/* ✅ Admin Management */}
+                <Route path="users" element={<UsersList />} />  {/* New Admin Users tab */}
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" />} />

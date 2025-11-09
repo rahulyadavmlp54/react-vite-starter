@@ -1,24 +1,27 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useLoader } from "../context/LoaderContext";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Building,
   CalendarCheck,
-  PlusCircle,
   ClipboardList,
   Home,
+  Users,
+  PlusCircle,
 } from "lucide-react";
 
 export default function Dashboard() {
   const { showLoader, hideLoader } = useLoader();
   const [role, setRole] = useState("");
   const [stats, setStats] = useState({
+    totalUsers: 0,
     totalProperties: 0,
     totalBookings: 0,
     upcomingBookings: 0,
   });
   const [recentBookings, setRecentBookings] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -29,7 +32,7 @@ export default function Dashboard() {
         } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Fetch role
+        // 🔹 Fetch user role
         const { data: profile } = await supabase
           .from("profiles")
           .select("role")
@@ -39,35 +42,63 @@ export default function Dashboard() {
         const currentRole = profile?.role || "user";
         setRole(currentRole);
 
-        // Fetch counts
+        // 🔹 ADMIN DASHBOARD DATA
         if (currentRole === "admin") {
-          // Admin-specific stats
-          const { count: propertyCount } = await supabase
-            .from("properties")
-            .select("*", { count: "exact", head: true })
-            .eq("owner_id", user.id);
-
-          const { count: bookingCount } = await supabase
-            .from("bookings")
-            .select("*", { count: "exact", head: true })
-            .eq("owner_id", user.id);
+          const [{ count: propertyCount }, { count: bookingCount }, { count: userCount }] =
+            await Promise.all([
+              supabase.from("properties").select("*", { count: "exact", head: true }),
+              supabase.from("bookings").select("*", { count: "exact", head: true }),
+              supabase.from("profiles").select("*", { count: "exact", head: true }),
+            ]);
 
           const { data: upcoming } = await supabase
             .from("bookings")
-            .select("*")
+            .select("*, properties(name)")
+            .gte("check_in", new Date().toISOString())
+            .order("check_in", { ascending: true })
+            .limit(3);
+
+          setStats({
+            totalUsers: userCount || 0,
+            totalProperties: propertyCount || 0,
+            totalBookings: bookingCount || 0,
+            upcomingBookings: upcoming?.length || 0,
+          });
+          setRecentBookings(upcoming || []);
+        }
+
+        // 🔹 OWNER DASHBOARD DATA
+        else if (currentRole === "owner") {
+          const [{ count: propertyCount }, { count: bookingCount }] = await Promise.all([
+            supabase
+              .from("properties")
+              .select("*", { count: "exact", head: true })
+              .eq("owner_id", user.id),
+            supabase
+              .from("bookings")
+              .select("*", { count: "exact", head: true })
+              .eq("owner_id", user.id),
+          ]);
+
+          const { data: upcoming } = await supabase
+            .from("bookings")
+            .select("*, properties(name)")
             .eq("owner_id", user.id)
             .gte("check_in", new Date().toISOString())
             .order("check_in", { ascending: true })
             .limit(3);
 
           setStats({
+            totalUsers: 0,
             totalProperties: propertyCount || 0,
             totalBookings: bookingCount || 0,
             upcomingBookings: upcoming?.length || 0,
           });
           setRecentBookings(upcoming || []);
-        } else {
-          // User-specific stats
+        }
+
+        // 🔹 USER DASHBOARD DATA
+        else {
           const { count: myBookings } = await supabase
             .from("bookings")
             .select("*", { count: "exact", head: true })
@@ -82,6 +113,7 @@ export default function Dashboard() {
             .limit(3);
 
           setStats({
+            totalUsers: 0,
             totalProperties: 0,
             totalBookings: myBookings || 0,
             upcomingBookings: upcoming?.length || 0,
@@ -98,63 +130,127 @@ export default function Dashboard() {
     fetchDashboardData();
   }, []);
 
+  // 🔹 Utility: Clickable card component
+  const StatCard = ({ icon, title, value, color, onClick }) => (
+    <div
+      className={`col-md-3 col-sm-6`}
+      onClick={onClick}
+      style={{ cursor: "pointer" }}
+    >
+      <div
+        className="card text-center border-0 shadow-lg p-4 h-100"
+        style={{
+          background: `linear-gradient(135deg, ${color} 0%, #1f2937 100%)`,
+          color: "white",
+          transition: "transform 0.2s ease",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.03)")}
+        onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1.0)")}
+      >
+        <div className="mb-2">{icon}</div>
+        <h6 className="fw-semibold">{title}</h6>
+        <h3 className="fw-bold">{value}</h3>
+      </div>
+    </div>
+  );
+
   return (
     <div className="container-fluid py-4 px-4">
-      <h2 className="fw-bold mb-4">
+      <h2 className="fw-bold mb-4 d-flex align-items-center">
         <Home className="me-2" />
-        {role === "admin" ? "Admin Dashboard" : "User Dashboard"}
+        {role === "admin"
+          ? "Admin Dashboard"
+          : role === "owner"
+            ? "Owner Dashboard"
+            : "User Dashboard"}
       </h2>
 
-      {/* Stats Cards */}
+      {/* === STATS SECTION === */}
       <div className="row g-4">
         {role === "admin" && (
-          <div className="col-md-4">
-            <div className="card shadow-sm border-0 p-3 text-center">
-              <Building size={28} className="text-primary mb-2" />
-              <h5>Total Properties</h5>
-              <h3 className="fw-bold">{stats.totalProperties}</h3>
-            </div>
-          </div>
+          <>
+            <StatCard
+              icon={<Users size={30} />}
+              title="Total Users"
+              value={stats.totalUsers}
+              color="#2563eb"
+              onClick={() => navigate("/users")}
+            />
+            <StatCard
+              icon={<Building size={30} />}
+              title="Total Properties"
+              value={stats.totalProperties}
+              color="#10b981"
+              onClick={() => navigate("/properties")}
+            />
+            <StatCard
+              icon={<ClipboardList size={30} />}
+              title="Total Bookings"
+              value={stats.totalBookings}
+              color="#f59e0b"
+              onClick={() => navigate("/owner-bookings")}
+            />
+          </>
         )}
 
-        <div className="col-md-4">
-          <div className="card shadow-sm border-0 p-3 text-center">
-            <CalendarCheck size={28} className="text-success mb-2" />
-            <h5>Total Bookings</h5>
-            <h3 className="fw-bold">{stats.totalBookings}</h3>
-          </div>
-        </div>
+        {role === "owner" && (
+          <>
+            <StatCard
+              icon={<Building size={30} />}
+              title="My Properties"
+              value={stats.totalProperties}
+              color="#10b981"
+              onClick={() => navigate("/properties")}
+            />
+            <StatCard
+              icon={<ClipboardList size={30} />}
+              title="My Bookings"
+              value={stats.totalBookings}
+              color="#f59e0b"
+              onClick={() => navigate("/owner-bookings")}
+            />
+          </>
+        )}
 
-        <div className="col-md-4">
-          <div className="card shadow-sm border-0 p-3 text-center">
-            <ClipboardList size={28} className="text-warning mb-2" />
-            <h5>Upcoming Bookings</h5>
-            <h3 className="fw-bold">{stats.upcomingBookings}</h3>
-          </div>
-        </div>
+        {role === "user" && (
+          <StatCard
+            icon={<CalendarCheck size={30} />}
+            title="My Bookings"
+            value={stats.totalBookings}
+            color="#3b82f6"
+            onClick={() => navigate("/my-bookings")}
+          />
+        )}
+
+        <StatCard
+          icon={<CalendarCheck size={30} />}
+          title="Upcoming Bookings"
+          value={stats.upcomingBookings}
+          color="#8b5cf6"
+          onClick={() =>
+            navigate("/owner-bookings")
+          }
+        />
       </div>
 
-      {/* Recent Section */}
+      {/* === RECENT BOOKINGS === */}
       <div className="mt-5">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h4>Recent / Upcoming Bookings</h4>
-          {role === "admin" ? (
-            <Link to="/owner-bookings" className="btn btn-outline-primary btn-sm">
-              View All
-            </Link>
-          ) : (
-            <Link to="/my-bookings" className="btn btn-outline-primary btn-sm">
-              View All
-            </Link>
-          )}
+          <Link
+            to={role === "admin" ? "/owner-bookings" : "/my-bookings"}
+            className="btn btn-outline-primary btn-sm"
+          >
+            View All
+          </Link>
         </div>
 
         {recentBookings.length === 0 ? (
           <p className="text-muted">No upcoming bookings found.</p>
         ) : (
-          <div className="table-responsive">
-            <table className="table table-striped align-middle">
-              <thead>
+          <div className="table-responsive shadow-sm rounded">
+            <table className="table table-hover align-middle mb-0">
+              <thead className="table-dark">
                 <tr>
                   <th>Property</th>
                   <th>Check-in</th>
@@ -188,11 +284,11 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Quick Actions */}
+      {/* === QUICK ACTIONS === */}
       {role === "admin" && (
         <div className="mt-5">
           <h4>Quick Actions</h4>
-          <div className="d-flex gap-3 mt-3">
+          <div className="d-flex gap-3 mt-3 flex-wrap">
             <Link to="/properties/add" className="btn btn-primary d-flex align-items-center">
               <PlusCircle size={18} className="me-2" />
               Add New Property

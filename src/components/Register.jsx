@@ -21,30 +21,37 @@ export default function Register() {
     const handleRegister = async (e) => {
         e.preventDefault()
         setMessage('')
-        showLoader('Logging in...')
+        showLoader('Registering...')
+
         const { data, error } = await supabase.auth.signUp({
             email: form.email,
             password: form.password,
+            options: {
+                data: {
+                    first_name: form.first_name,
+                    last_name: form.last_name,
+                    phone_number: form.phone_number,
+                    role: 'user', // default role
+                },
+            },
         })
+
         hideLoader()
+
         if (error) {
             setMessage(error.message)
             return
         }
 
-        const user = data.user
-        if (user) {
-            await supabase.from('profiles').insert([
-                {
-                    id: user.id,
-                    first_name: form.first_name,
-                    last_name: form.last_name,
-                    email: form.email,
-                    phone_number: form.phone_number,
-                },
-            ])
-            setMessage('✅ Registration successful! Please check your email to verify.')
-            setForm({ first_name: '', last_name: '', email: '', phone_number: '', password: '' })
+        if (data.user) {
+            setMessage('✅ Registration successful! Please check your email to verify your account.')
+            setForm({
+                first_name: '',
+                last_name: '',
+                email: '',
+                phone_number: '',
+                password: '',
+            })
         }
     }
 
@@ -115,6 +122,7 @@ export default function Register() {
                         <button type="submit" className="btn btn-primary w-100 mb-3">
                             Register
                         </button>
+
                         <p className="text-center mb-0">
                             Already have an account?{' '}
                             <Link to="/login" className="text-success fw-semibold">
